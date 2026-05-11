@@ -31,6 +31,7 @@ model Genre {
   name String
   imageUrl String
   users User[] @relation("UserGenres")
+  position Int @default(autoincrement())
 }
 
 enum LoginType {

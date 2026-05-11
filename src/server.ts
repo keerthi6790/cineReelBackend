@@ -3,6 +3,7 @@ import fastifyJwt, { JWT } from "fastify-jwt";
 import userRoutes from "./modules/user/user.route";
 import { UserSchema } from "./modules/user/user.schema";
 import { env } from "prisma/config";
+import genreRoutes from "./modules/genre/genre.route";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -73,6 +74,7 @@ function buildServer() {
   }
 
   server.register(userRoutes, { prefix: "/api/user" });
+  server.register(genreRoutes, { prefix: "/api/genre" });
 
   return server;
 }
