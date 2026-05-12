@@ -23,6 +23,7 @@ model User {
   loginType LoginType @default(NORMAL)
   photoUrl String?
   genres Genre[] @relation("UserGenres")
+  isEmailVerified Boolean @default(false)
 }
 
 

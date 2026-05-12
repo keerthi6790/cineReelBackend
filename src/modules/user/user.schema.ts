@@ -32,8 +32,18 @@ const RegisterRequest = z.object({
     .string({ required_error: "Bio is Required" })
     .min(10, { message: "Mininum 10 characters" })
     .max(50, { message: "Maximum 25 characters" }),
-  photoData: z.string({ required_error: "Photo Url is Required" }),
+  photoData: z
+    .string({ required_error: "Photo Url is Required" })
+    .url({ message: "Invalid URL" }),
   userName: z.string({ required_error: "User Name is Required" }),
+  genre: z
+    .string({
+      message: "Genre is Required",
+    })
+    .array()
+    .min(3, {
+      message: "Minimum 3 Genre are Required",
+    }),
 });
 
 const updateUserRequest = z.object({

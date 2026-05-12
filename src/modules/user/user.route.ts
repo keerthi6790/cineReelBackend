@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { $ref } from "./user.schema";
 import {
   isEmailAddressValid,
+  isEmailVerified,
   isUserNameValid,
   loginHandler,
   registerHandler,
@@ -58,6 +59,16 @@ async function userRoutes(server: FastifyInstance) {
       },
     },
     isUserNameValid,
+  );
+
+  server.put(
+    "/email/verify",
+    {
+      schema: {
+        querystring: $ref("isEmailAddressValidRequest"),
+      },
+    },
+    isEmailVerified,
   );
 }
 

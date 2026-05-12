@@ -1,6 +1,7 @@
 import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import {
   isEmailAddressValidRequestSchema,
+  isEmailVerifiedRequiredSchema,
   isUsernameValidRequestSchema,
   LoginRequestSchema,
   RegisterRequestSchema,
@@ -25,8 +26,6 @@ export const loginHandler = async (
         emailAdress: emailAddress,
       },
     });
-
-    console.log({ foundedUser });
 
     if (foundedUser) {
       const isPasswordMatched = await bcrypt.compare(
@@ -103,6 +102,7 @@ export const registerHandler = async (
       fullName,
       photoData,
       userName,
+      genre,
     } = request.body;
 
     const hashed_password = await bcrypt.hash(password, 12);
@@ -117,6 +117,12 @@ export const registerHandler = async (
           fullName,
           photoUrl: photoData,
           userName,
+          genres: {
+            connect:
+              genre?.map((gen) => ({
+                id: gen,
+              })) || [],
+          },
         },
       });
 
@@ -163,6 +169,15 @@ export const registerHandler = async (
           reply,
           code: 500,
           message: "Already email is registered!",
+          status: false,
+        });
+      }
+
+      if (err.code === "P2025") {
+        responseSender({
+          reply,
+          code: 500,
+          message: "Genre Id mismatching",
           status: false,
         });
       }
@@ -288,6 +303,64 @@ export const isUserNameValid = async (
       message: "Something went wrong!",
       status: false,
       data: err,
+    });
+  }
+};
+
+export const isEmailVerified = async (
+  request: FastifyRequest<{ Querystring: isEmailAddressValidRequestSchema }>,
+  reply: FastifyReply,
+) => {
+  try {
+    const { emailAddress } = request.query;
+
+    const response = await prisma.user.update({
+      where: {
+        emailAdress: emailAddress,
+      },
+      data: {
+        isEmailVerified: true,
+      },
+    });
+
+    if (response) {
+      responseSender({
+        code: 201,
+        reply,
+        status: true,
+        message: "Verified Successfully",
+      });
+    } else {
+      responseSender({
+        code: 500,
+        reply,
+        status: false,
+        message: "Not Verified Successfully",
+      });
+    }
+  } catch (err) {
+    console.log({ err: err });
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P2025") {
+        responseSender({
+          code: 500,
+          reply,
+          status: false,
+          message: "Provided Email is Not Registered",
+        });
+      }
+      responseSender({
+        code: 500,
+        reply,
+        status: false,
+        message: "Something went wrong!",
+      });
+    }
+    responseSender({
+      code: 500,
+      reply,
+      status: false,
+      message: "Something went wrong!",
     });
   }
 };

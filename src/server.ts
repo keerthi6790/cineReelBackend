@@ -30,7 +30,6 @@ function buildServer() {
   const server = fastify();
 
   server.setErrorHandler((err, req, reply) => {
-    console.log({ err: err.validation });
     if (err.validation) {
       return reply.status(400).send({
         message: "Validation failed",
