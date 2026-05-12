@@ -4,6 +4,8 @@ import userRoutes from "./modules/user/user.route";
 import { UserSchema } from "./modules/user/user.schema";
 import { env } from "prisma/config";
 import genreRoutes from "./modules/genre/genre.route";
+import commonRoutes from "./modules/common/common.route";
+import multipart from "@fastify/multipart";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -50,6 +52,8 @@ function buildServer() {
     secret: env("SECRET_KEY"),
   });
 
+  server.register(multipart);
+
   server.decorate(
     "authenticate",
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -75,6 +79,7 @@ function buildServer() {
 
   server.register(userRoutes, { prefix: "/api/user" });
   server.register(genreRoutes, { prefix: "/api/genre" });
+  server.register(commonRoutes, { prefix: "/api/common" });
 
   return server;
 }

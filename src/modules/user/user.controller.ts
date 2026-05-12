@@ -101,7 +101,7 @@ export const registerHandler = async (
       loginType,
       bio,
       fullName,
-      photoUrl,
+      photoData,
       userName,
     } = request.body;
 
@@ -115,7 +115,7 @@ export const registerHandler = async (
           loginType: loginType,
           bio,
           fullName,
-          photoUrl,
+          photoUrl: photoData,
           userName,
         },
       });

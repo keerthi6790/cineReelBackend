@@ -1,0 +1,17 @@
+import { S3Client } from "@aws-sdk/client-s3";
+import { env } from "prisma/config";
+
+console.log({
+  region: env("AWS_REGION"),
+  keyId: env("AWS_ACCESS_KEY_ID"),
+  accessKey: env("AWS_SECRET_ACCESS_KEY"),
+});
+const S3ClientInstance = new S3Client({
+  region: env("AWS_REGION"),
+  credentials: {
+    accessKeyId: env("AWS_ACCESS_KEY_ID"),
+    secretAccessKey: env("AWS_SECRET_ACCESS_KEY"),
+  },
+});
+
+export default S3ClientInstance;

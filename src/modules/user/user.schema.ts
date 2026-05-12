@@ -32,7 +32,7 @@ const RegisterRequest = z.object({
     .string({ required_error: "Bio is Required" })
     .min(10, { message: "Mininum 10 characters" })
     .max(50, { message: "Maximum 25 characters" }),
-  photoUrl: z.string({ required_error: "Photo Url is Required" }),
+  photoData: z.string({ required_error: "Photo Url is Required" }),
   userName: z.string({ required_error: "User Name is Required" }),
 });
 
