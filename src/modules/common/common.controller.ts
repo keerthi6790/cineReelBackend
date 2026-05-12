@@ -8,7 +8,7 @@ export const uploadImage = async (
   request: FastifyRequest,
   reply: FastifyReply,
 ) => {
-  const data = await request.file(); // From @fastify/multipart
+  const data = await request.file();
 
   if (!data) {
     responseSender({ reply, code: 500, status: false });
@@ -30,8 +30,6 @@ export const uploadImage = async (
   try {
     const response = await parallelUploads3.done();
 
-    console.log({ response, parallelUploads3 });
-
     responseSender({
       reply,
       code: 201,
@@ -41,7 +39,12 @@ export const uploadImage = async (
     });
   } catch (err) {
     console.log(err);
-    reply.code(500).send({ error: "Upload failed" });
+    responseSender({
+      reply,
+      code: 500,
+      status: false,
+      message: "Upload Failed!",
+    });
   }
 };
 
@@ -50,6 +53,15 @@ export const deleteUploadImage = async (
   reply: FastifyReply,
 ) => {
   const { id } = request.params;
+
+  if (!id) {
+    responseSender({
+      reply,
+      code: 201,
+      status: true,
+      message: "File Name is missing!",
+    });
+  }
 
   // 2. Delete from AWS S3
   const s3Params = {
@@ -60,12 +72,19 @@ export const deleteUploadImage = async (
   try {
     await S3ClientInstance.send(new DeleteObjectCommand(s3Params));
 
-    // 3. Delete from your database (e.g., PostgreSQL, MongoDB)
-    // await db.query('DELETE FROM images WHERE id = $1', [id]);
-
-    return { success: true, message: "Image deleted successfully" };
+    responseSender({
+      reply,
+      code: 201,
+      status: true,
+      message: "Image Deleted Successfully!",
+    });
   } catch (err) {
     console.log(err);
-    reply.code(500).send({ error: "Failed to delete image" });
+    responseSender({
+      reply,
+      code: 500,
+      status: false,
+      message: "Failed to delete image!",
+    });
   }
 };
