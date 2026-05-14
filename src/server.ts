@@ -43,7 +43,7 @@ function buildServer() {
     reply.send(err);
   });
 
-  server.get("/", (request: FastifyRequest, reply: FastifyReply) =>
+  server.get("/health-check", (request: FastifyRequest, reply: FastifyReply) =>
     reply.code(201).send("Running"),
   );
 
