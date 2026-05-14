@@ -1,11 +1,14 @@
 import { FastifyInstance } from "fastify";
 import { $ref } from "./user.schema";
 import {
+  getUserInfo,
+  googleLoginHandler,
   isEmailAddressValid,
   isEmailVerified,
   isUserNameValid,
   loginHandler,
   registerHandler,
+  triggerOtp,
   updateUserData,
 } from "./user.controller";
 
@@ -65,10 +68,29 @@ async function userRoutes(server: FastifyInstance) {
     "/email/verify",
     {
       schema: {
-        querystring: $ref("isEmailAddressValidRequest"),
+        body: $ref("isEmailAddressValidRequest"),
       },
+      preHandler: [server.authenticate],
     },
     isEmailVerified,
+  );
+
+  server.post(
+    "/loginViaGoogle",
+    {
+      schema: {
+        body: $ref("googleLoginHandlerRequest"),
+      },
+    },
+    googleLoginHandler,
+  );
+
+  server.get("/otp/trigger", { preHandler: [server.authenticate] }, triggerOtp);
+
+  server.get(
+    "/getUserInfo",
+    { preHandler: [server.authenticate] },
+    getUserInfo,
   );
 }
 

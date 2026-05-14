@@ -1,7 +1,7 @@
 import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import {
+  googleLoginHandlerRequestSchema,
   isEmailAddressValidRequestSchema,
-  isEmailVerifiedRequiredSchema,
   isUsernameValidRequestSchema,
   LoginRequestSchema,
   RegisterRequestSchema,
@@ -13,6 +13,9 @@ import bcrypt from "bcrypt";
 import { Prisma } from "../../generated/prisma/client";
 import jwt from "jsonwebtoken";
 import { env } from "prisma/config";
+import admin from "../../utils/firebase";
+import { FirebaseAuthError } from "firebase-admin/auth";
+import generateOtp from "../../utils/generateOtp";
 
 export const loginHandler = async (
   request: FastifyRequest<{ Body: LoginRequestSchema }>,
@@ -85,6 +88,74 @@ export const loginHandler = async (
       message: "Something went wrong!",
       status: false,
       data: err,
+    });
+  }
+};
+
+export const googleLoginHandler = async (
+  request: FastifyRequest<{ Body: googleLoginHandlerRequestSchema }>,
+  reply: FastifyReply,
+) => {
+  try {
+    const { token } = request.body;
+    const decodedToken = await admin.auth().verifyIdToken(token);
+
+    if (decodedToken) {
+      const foundedUser = await prisma.user.findFirst({
+        where: {
+          emailAdress: decodedToken.email,
+        },
+      });
+
+      if (foundedUser) {
+        const jwtToken = jwt.sign(
+          {
+            id: foundedUser.id,
+            emailAddress: foundedUser.emailAdress,
+          },
+          env("SECRET_KEY"),
+        );
+
+        responseSender({
+          reply,
+          code: 201,
+          message: "LoggedIn Successfully",
+          status: true,
+          data: {
+            token: jwtToken,
+          },
+        });
+      } else {
+        responseSender({
+          reply,
+          code: 500,
+          message: "Email is not matched, Please Signup first",
+          status: false,
+        });
+      }
+    } else {
+      responseSender({
+        reply,
+        code: 500,
+        message: "Something wrong with token",
+        status: false,
+      });
+    }
+
+    console.log({ decodedToken });
+  } catch (err) {
+    if (err instanceof FirebaseAuthError)
+      responseSender({
+        reply,
+        code: 500,
+        status: false,
+        message: err.message,
+      });
+    responseSender({
+      reply,
+      code: 500,
+      status: false,
+      message: "Something went wrong!",
     });
   }
 };
@@ -307,23 +378,62 @@ export const isUserNameValid = async (
   }
 };
 
-export const isEmailVerified = async (
-  request: FastifyRequest<{ Querystring: isEmailAddressValidRequestSchema }>,
+export const triggerOtp = async (
+  request: FastifyRequest,
   reply: FastifyReply,
 ) => {
   try {
-    const { emailAddress } = request.query;
+    const { id } = request.user;
+    const generatedOtp = generateOtp(6);
 
-    const response = await prisma.user.update({
-      where: {
-        emailAdress: emailAddress,
-      },
+    await prisma.userOtp.create({
       data: {
-        isEmailVerified: true,
+        userId: id,
+        otp: generatedOtp,
       },
     });
 
-    if (response) {
+    responseSender({
+      code: 201,
+      reply,
+      status: true,
+      message: "Otp Sent!",
+    });
+  } catch (err) {
+    console.log({ err });
+    responseSender({
+      reply,
+      code: 500,
+      status: false,
+      message: "Something went wrong!",
+    });
+  }
+};
+
+export const isEmailVerified = async (
+  request: FastifyRequest<{ Body: isEmailAddressValidRequestSchema }>,
+  reply: FastifyReply,
+) => {
+  try {
+    const { otp } = request.body;
+
+    const { id } = request.user;
+
+    const response = await prisma.userOtp.findUnique({
+      where: {
+        userId: id,
+      },
+    });
+
+    if (response?.otp === otp) {
+      await prisma.user.update({
+        where: {
+          id,
+        },
+        data: {
+          isEmailVerified: true,
+        },
+      });
       responseSender({
         code: 201,
         reply,
@@ -335,7 +445,7 @@ export const isEmailVerified = async (
         code: 500,
         reply,
         status: false,
-        message: "Not Verified Successfully",
+        message: "Otp Mismatch!",
       });
     }
   } catch (err) {
@@ -359,6 +469,58 @@ export const isEmailVerified = async (
     responseSender({
       code: 500,
       reply,
+      status: false,
+      message: "Something went wrong!",
+    });
+  }
+};
+
+export const getUserInfo = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  try {
+    const { id } = request.user;
+
+    if (id) {
+      const response = await prisma.user.findUnique({
+        where: {
+          id,
+        },
+        omit: {
+          hashed_password: true,
+          id: true,
+          loginType: true,
+        },
+      });
+
+      if (response) {
+        responseSender({
+          code: 201,
+          reply,
+          status: true,
+          data: response,
+        });
+      } else {
+        responseSender({
+          reply,
+          code: 500,
+          status: false,
+          message: "Authentication Failed!",
+        });
+      }
+    } else {
+      responseSender({
+        reply,
+        code: 500,
+        status: false,
+        message: "Authentication Failed!",
+      });
+    }
+  } catch (err) {
+    responseSender({
+      reply,
+      code: 500,
       status: false,
       message: "Something went wrong!",
     });

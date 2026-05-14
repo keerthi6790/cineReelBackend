@@ -21,7 +21,7 @@ declare module "fastify-jwt" {
   interface FastifyJWT {
     user: {
       id: string;
-      email: string;
+      emailAddress: string;
     };
   }
 }
@@ -43,7 +43,7 @@ function buildServer() {
     reply.send(err);
   });
 
-  server.get("/health-check", (request: FastifyRequest, reply: FastifyReply) =>
+  server.get("/", (request: FastifyRequest, reply: FastifyReply) =>
     reply.code(201).send("Running"),
   );
 
