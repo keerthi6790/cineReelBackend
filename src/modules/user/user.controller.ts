@@ -6,6 +6,7 @@ import {
   LoginRequestSchema,
   RegisterRequestSchema,
   updateUserRequestSchema,
+  verifyEmailAddressRequestSchema,
 } from "./user.schema";
 import { responseSender } from "../../utils/responseSender";
 import prisma from "../../utils/prisma";
@@ -411,7 +412,7 @@ export const triggerOtp = async (
 };
 
 export const isEmailVerified = async (
-  request: FastifyRequest<{ Body: isEmailAddressValidRequestSchema }>,
+  request: FastifyRequest<{ Body: verifyEmailAddressRequestSchema }>,
   reply: FastifyReply,
 ) => {
   try {

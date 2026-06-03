@@ -68,7 +68,7 @@ async function userRoutes(server: FastifyInstance) {
     "/email/verify",
     {
       schema: {
-        body: $ref("isEmailAddressValidRequest"),
+        body: $ref("verifyEmailAddressRequest"),
       },
       preHandler: [server.authenticate],
     },

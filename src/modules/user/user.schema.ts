@@ -61,8 +61,12 @@ const updateUserRequest = z.object({
   userName: z.string({ required_error: "User Name is Required" }),
 });
 
-const isEmailAddressValidRequest = z.object({
+const verifyEmailAddressRequest = z.object({
   otp: z.string(),
+});
+
+const isEmailAddressValidRequest = z.object({
+  emailAddress: z.string().email({ message: "Valid email is required" }),
 });
 
 const isUsernameValidRequest = z.object({
@@ -89,6 +93,9 @@ export type isUsernameValidRequestSchema = z.infer<
 export type googleLoginHandlerRequestSchema = z.infer<
   typeof googleLoginHandlerRequest
 >;
+export type verifyEmailAddressRequestSchema = z.infer<
+  typeof verifyEmailAddressRequest
+>;
 
 export const { schemas: UserSchema, $ref } = buildJsonSchemas({
   LoginRequest,
@@ -97,4 +104,5 @@ export const { schemas: UserSchema, $ref } = buildJsonSchemas({
   isEmailAddressValidRequest,
   isUsernameValidRequest,
   googleLoginHandlerRequest,
+  verifyEmailAddressRequest,
 });
