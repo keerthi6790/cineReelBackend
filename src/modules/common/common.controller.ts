@@ -11,7 +11,7 @@ export const uploadImage = async (
   const data = await request.file();
 
   if (!data) {
-    responseSender({ reply, code: 500, status: false });
+    return responseSender({ reply, code: 500, status: false });
   }
 
   const parallelUploads3 = new Upload({
@@ -49,7 +49,7 @@ export const uploadImage = async (
 };
 
 export const deleteUploadImage = async (
-  request: FastifyRequest,
+  request: FastifyRequest<{ Params: { id: string } }>,
   reply: FastifyReply,
 ) => {
   const { id } = request.params;

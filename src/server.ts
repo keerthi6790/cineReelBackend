@@ -2,10 +2,16 @@ import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import fastifyJwt, { JWT } from "fastify-jwt";
 import userRoutes from "./modules/user/user.route";
 import { UserSchema } from "./modules/user/user.schema";
+import movieRoutes from "./modules/movie/movie.route";
+import { MovieSchema } from "./modules/movie/movie.schema";
+import postRoutes from "./modules/post/post.route";
+import { PostSchema } from "./modules/post/post.schema";
 import { env } from "prisma/config";
 import genreRoutes from "./modules/genre/genre.route";
 import commonRoutes from "./modules/common/common.route";
 import multipart from "@fastify/multipart";
+
+
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -29,11 +35,11 @@ declare module "fastify-jwt" {
 function buildServer() {
   const server = fastify();
 
-  server.setErrorHandler((err, req, reply) => {
+  server.setErrorHandler((err: any, req, reply) => {
     if (err.validation) {
       return reply.status(400).send({
         message: "Validation failed",
-        errors: err.validation.map((e) => ({
+        errors: err.validation.map((e: any) => ({
           field: e.instancePath,
           message: e.message,
         })),
@@ -58,7 +64,7 @@ function buildServer() {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         await request.jwtVerify();
-      } catch (e) {
+      } catch (e: any) {
         reply.code(500).send(e);
       }
     },
@@ -72,13 +78,15 @@ function buildServer() {
     },
   );
 
-  for (const schema of [...UserSchema]) {
+  for (const schema of [...UserSchema, ...MovieSchema, ...PostSchema]) {
     server.addSchema(schema);
   }
 
   server.register(userRoutes, { prefix: "/api/user" });
   server.register(genreRoutes, { prefix: "/api/genre" });
   server.register(commonRoutes, { prefix: "/api/common" });
+  server.register(movieRoutes, { prefix: "/api/movie" });
+  server.register(postRoutes, { prefix: "/api/post" });
 
   return server;
 }
