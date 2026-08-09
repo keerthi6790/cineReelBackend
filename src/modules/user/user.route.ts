@@ -1,97 +1,112 @@
 import { FastifyInstance } from "fastify";
-import { $ref } from "./user.schema";
 import {
-  getUserInfo,
-  googleLoginHandler,
-  isEmailAddressValid,
-  isEmailVerified,
-  isUserNameValid,
-  loginHandler,
-  registerHandler,
-  triggerOtp,
-  updateUserData,
+  checkEmailHandler,
+  getMeHandler,
+  loginUserHandler,
+  registerUserHandler,
+  verifyEmailHandler,
+  resendCodeHandler,
 } from "./user.controller";
+import { $ref } from "./user.schema";
 
-async function userRoutes(server: FastifyInstance) {
+export async function userRoutes(server: FastifyInstance) {
+  // Check if email is available
   server.post(
-    "/login",
+    "/check-email",
     {
       schema: {
-        body: $ref("LoginRequest"),
+        tags: ["User Auth & Email"],
+        summary: "Check Email Availability",
+        description: "Validates format and checks if an email address is available for registration.",
+        body: $ref("checkEmailSchema"),
+        response: {
+          200: $ref("checkEmailResponseSchema"),
+        },
       },
     },
-    loginHandler,
+    checkEmailHandler
   );
 
+  // Register user account
   server.post(
     "/register",
     {
       schema: {
-        body: $ref("RegisterRequest"),
+        tags: ["User Auth & Email"],
+        summary: "Register User Account",
+        description: "Creates a new merchant account with hashed password and generates an email verification code.",
+        body: $ref("createUserSchema"),
+        response: {
+          201: $ref("createUserResponseSchema"),
+        },
       },
     },
-    registerHandler,
+    registerUserHandler
   );
 
+  // Verify email code
   server.post(
-    "/update",
+    "/verify-email",
     {
       schema: {
-        body: $ref("updateUserRequest"),
+        tags: ["User Auth & Email"],
+        summary: "Verify Email Code",
+        description: "Verifies user email using the 6-digit OTP / verification token.",
+        body: $ref("verifyEmailSchema"),
+        response: {
+          200: $ref("verifyEmailResponseSchema"),
+        },
       },
-      preHandler: [server.authenticate],
     },
-    updateUserData,
+    verifyEmailHandler
   );
 
+  // Resend verification code
   server.post(
-    "/verify/email",
+    "/resend-code",
     {
       schema: {
-        body: $ref("isEmailAddressValidRequest"),
+        tags: ["User Auth & Email"],
+        summary: "Resend Email Verification Code",
+        description: "Generates and returns a fresh 6-digit OTP verification code for unverified emails.",
+        body: $ref("resendCodeSchema"),
+        response: {
+          200: $ref("resendCodeResponseSchema"),
+        },
       },
     },
-    isEmailAddressValid,
+    resendCodeHandler
   );
 
+  // Login user account
   server.post(
-    "/verify/username",
+    "/login",
     {
       schema: {
-        body: $ref("isUsernameValidRequest"),
+        tags: ["User Auth & Email"],
+        summary: "User Login",
+        description: "Authenticates user credentials and issues a JWT access token.",
+        body: $ref("loginSchema"),
+        response: {
+          200: $ref("loginResponseSchema"),
+        },
       },
     },
-    isUserNameValid,
+    loginUserHandler
   );
 
-  server.put(
-    "/email/verify",
-    {
-      schema: {
-        body: $ref("verifyEmailAddressRequest"),
-      },
-      preHandler: [server.authenticate],
-    },
-    isEmailVerified,
-  );
-
-  server.post(
-    "/loginViaGoogle",
-    {
-      schema: {
-        body: $ref("googleLoginHandlerRequest"),
-      },
-    },
-    googleLoginHandler,
-  );
-
-  server.get("/otp/trigger", { preHandler: [server.authenticate] }, triggerOtp);
-
+  // Get logged in profile (Requires Authentication)
   server.get(
-    "/getUserInfo",
-    { preHandler: [server.authenticate] },
-    getUserInfo,
+    "/me",
+    {
+      onRequest: [server.authenticate],
+      schema: {
+        tags: ["User Auth & Email"],
+        summary: "Get Current User Profile",
+        description: "Retrieves profile details and owned stores of the currently authenticated merchant.",
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    getMeHandler
   );
 }
-
-export default userRoutes;

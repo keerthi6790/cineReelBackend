@@ -1,108 +1,93 @@
-import { buildJsonSchemas } from "fastify-zod";
 import { z } from "zod";
+import { buildJsonSchemas } from "fastify-zod";
 
-const userSchema = {
-  emailAddress: z.string().email({ message: "Valid email is required" }),
+const checkEmailSchema = z.object({
+  email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
+});
+
+const checkEmailResponseSchema = z.object({
+  available: z.boolean(),
+  message: z.string(),
+});
+
+const verifyEmailSchema = z.object({
+  email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
+  token: z.string({ required_error: "Verification token is required" }),
+});
+
+const verifyEmailResponseSchema = z.object({
+  message: z.string(),
+  emailVerified: z.boolean(),
+});
+
+const createUserSchema = z.object({
+  email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
+  name: z.string({ required_error: "Name is required" }).min(2, "Name must be at least 2 characters"),
   password: z
+    .string({ required_error: "Password is required" })
+    .min(6, "Password must be at least 6 characters")
+    .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least 1 lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least 1 number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least 1 special character"),
+  firstName: z.string().min(4, "First name must be greater than 3 characters").optional(),
+  lastName: z.string().min(1, "Last name must be at least 1 character").optional(),
+  mobileNumber: z
     .string()
-    .min(8, "Password must be at least 8 characters long")
-    .regex(/[A-Z]/, { message: "Must contain at least one uppercase letter" })
-    .regex(/[a-z]/, "Must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Must contain at least one number")
-    .regex(/[^A-Za-z0-9]/, "Must contain at least one special character"),
-};
-
-const LoginRequest = z.object({
-  ...userSchema,
+    .regex(/^(\+?\d{1,4}[\s-]?)?\(?\d{1,4}\)?[\s-]?\d{1,4}[\s-]?\d{1,9}$/, "Invalid mobile phone format")
+    .optional(),
 });
 
-const RegisterRequest = z.object({
-  ...userSchema,
-  loginType: z.enum(["GOOGLE", "NORMAL"], {
-    required_error: "login type is required",
-    message: "Login Type is Required",
-  }),
-  fullName: z
-    .string({
-      required_error: "Full name is Required",
-    })
-    .min(10, { message: "Mininum 10 characters is required" })
-    .max(25, { message: "Maximum 25 characters" }),
-  bio: z
-    .string({ required_error: "Bio is Required" })
-    .min(10, { message: "Mininum 10 characters" })
-    .max(50, { message: "Maximum 25 characters" }),
-  photoData: z
-    .string({ required_error: "Photo Url is Required" })
-    .url({ message: "Invalid URL" }),
-  userName: z.string({ required_error: "User Name is Required" }),
-  genre: z
-    .string({
-      message: "Genre is Required",
-    })
-    .array()
-    .min(3, {
-      message: "Minimum 3 Genre are Required",
-    }),
+const createUserResponseSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string(),
+  role: z.string(),
+  emailVerified: z.boolean(),
+  verificationToken: z.string().nullable().optional(),
 });
 
-const updateUserRequest = z.object({
-  fullName: z
-    .string({
-      required_error: "Full name is Required",
-    })
-    .min(10, { message: "Mininum 10 characters is required" })
-    .max(25, { message: "Maximum 25 characters" }),
-  bio: z
-    .string({ required_error: "Bio is Required" })
-    .min(10, { message: "Mininum 10 characters" })
-    .max(50, { message: "Maximum 25 characters" }),
-  photoUrl: z.string({ required_error: "Photo Url is Required" }),
-  userName: z.string({ required_error: "User Name is Required" }),
+const loginSchema = z.object({
+  email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
+  password: z.string({ required_error: "Password is required" }),
 });
 
-const verifyEmailAddressRequest = z.object({
-  otp: z.string(),
+const loginResponseSchema = z.object({
+  requiresVerification: z.boolean().optional(),
+  accessToken: z.string().optional(),
+  email: z.string().optional(),
+  verificationToken: z.string().nullable().optional(),
+  message: z.string().optional(),
 });
 
-const isEmailAddressValidRequest = z.object({
-  emailAddress: z.string().email({ message: "Valid email is required" }),
+const resendCodeSchema = z.object({
+  email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
 });
 
-const isUsernameValidRequest = z.object({
-  userName: z.string({
-    required_error: "Username is required",
-  }),
+const resendCodeResponseSchema = z.object({
+  message: z.string(),
+  email: z.string(),
+  verificationToken: z.string().nullable().optional(),
 });
 
-const googleLoginHandlerRequest = z.object({
-  token: z.string({
-    required_error: "Username is required",
-  }),
-});
+export type CheckEmailInput = z.infer<typeof checkEmailSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+export type ResendCodeInput = z.infer<typeof resendCodeSchema>;
 
-export type LoginRequestSchema = z.infer<typeof LoginRequest>;
-export type RegisterRequestSchema = z.infer<typeof RegisterRequest>;
-export type updateUserRequestSchema = z.infer<typeof updateUserRequest>;
-export type isEmailAddressValidRequestSchema = z.infer<
-  typeof isEmailAddressValidRequest
->;
-export type isUsernameValidRequestSchema = z.infer<
-  typeof isUsernameValidRequest
->;
-export type googleLoginHandlerRequestSchema = z.infer<
-  typeof googleLoginHandlerRequest
->;
-export type verifyEmailAddressRequestSchema = z.infer<
-  typeof verifyEmailAddressRequest
->;
-
-export const { schemas: UserSchema, $ref } = buildJsonSchemas({
-  LoginRequest,
-  RegisterRequest,
-  updateUserRequest,
-  isEmailAddressValidRequest,
-  isUsernameValidRequest,
-  googleLoginHandlerRequest,
-  verifyEmailAddressRequest,
-});
+export const { schemas: userSchemas, $ref } = buildJsonSchemas(
+  {
+    checkEmailSchema,
+    checkEmailResponseSchema,
+    verifyEmailSchema,
+    verifyEmailResponseSchema,
+    createUserSchema,
+    createUserResponseSchema,
+    loginSchema,
+    loginResponseSchema,
+    resendCodeSchema,
+    resendCodeResponseSchema,
+  },
+  { $id: "userSchemas" }
+);

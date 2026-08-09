@@ -1,529 +1,249 @@
-import fastify, { FastifyReply, FastifyRequest } from "fastify";
-import {
-  googleLoginHandlerRequestSchema,
-  isEmailAddressValidRequestSchema,
-  isUsernameValidRequestSchema,
-  LoginRequestSchema,
-  RegisterRequestSchema,
-  updateUserRequestSchema,
-  verifyEmailAddressRequestSchema,
-} from "./user.schema";
-import { responseSender } from "../../utils/responseSender";
-import prisma from "../../utils/prisma";
+import { FastifyReply, FastifyRequest } from "fastify";
 import bcrypt from "bcrypt";
-import { Prisma } from "../../generated/prisma/client";
 import jwt from "jsonwebtoken";
-import { env } from "prisma/config";
-import admin from "../../utils/firebase";
-import { FirebaseAuthError } from "firebase-admin/auth";
-import generateOtp from "../../utils/generateOtp";
+import prisma from "../../utils/prisma";
+import { CheckEmailInput, CreateUserInput, LoginInput, VerifyEmailInput, ResendCodeInput } from "./user.schema";
 
-export const loginHandler = async (
-  request: FastifyRequest<{ Body: LoginRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { emailAddress, password } = request.body;
-
-    const foundedUser = await prisma.user.findUniqueOrThrow({
-      where: {
-        emailAdress: emailAddress,
-      },
-    });
-
-    if (foundedUser) {
-      const isPasswordMatched = await bcrypt.compare(
-        password,
-        foundedUser.hashed_password,
-      );
-
-      if (isPasswordMatched) {
-        const jwtToken = jwt.sign(
-          {
-            id: foundedUser.id,
-            emailAddress: foundedUser.emailAdress,
-          },
-          env("SECRET_KEY"),
-        );
-
-        responseSender({
-          reply,
-          code: 201,
-          message: "LoggedIn Successfully",
-          status: true,
-          data: {
-            token: jwtToken,
-          },
-        });
-      } else {
-        responseSender({
-          reply,
-          code: 500,
-          message: "Email/ Password mismatched",
-          status: false,
-        });
-      }
-    } else {
-      responseSender({
-        reply,
-        code: 500,
-        message: "Email/ Password mismatched",
-        status: false,
-      });
-    }
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      // The .code property can be accessed in a type-safe manner
-      if (err.code === "P2025") {
-        responseSender({
-          reply,
-          code: 500,
-          message: "Email/ Password mismatched",
-          status: false,
-        });
-      }
-    }
-    responseSender({
-      reply,
-      code: 500,
-      message: "Something went wrong!",
-      status: false,
-      data: err,
-    });
-  }
-};
-
-export const googleLoginHandler = async (
-  request: FastifyRequest<{ Body: googleLoginHandlerRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { token } = request.body;
-    const decodedToken = await admin.auth().verifyIdToken(token);
-
-    if (decodedToken) {
-      const foundedUser = await prisma.user.findFirst({
-        where: {
-          emailAdress: decodedToken.email,
-        },
-      });
-
-      if (foundedUser) {
-        const jwtToken = jwt.sign(
-          {
-            id: foundedUser.id,
-            emailAddress: foundedUser.emailAdress,
-          },
-          env("SECRET_KEY"),
-        );
-
-        responseSender({
-          reply,
-          code: 201,
-          message: "LoggedIn Successfully",
-          status: true,
-          data: {
-            token: jwtToken,
-          },
-        });
-      } else {
-        responseSender({
-          reply,
-          code: 500,
-          message: "Email is not matched, Please Signup first",
-          status: false,
-        });
-      }
-    } else {
-      responseSender({
-        reply,
-        code: 500,
-        message: "Something wrong with token",
-        status: false,
-      });
-    }
-
-    console.log({ decodedToken });
-  } catch (err) {
-    if (err instanceof FirebaseAuthError)
-      responseSender({
-        reply,
-        code: 500,
-        status: false,
-        message: err.message,
-      });
-    responseSender({
-      reply,
-      code: 500,
-      status: false,
-      message: "Something went wrong!",
-    });
-  }
-};
-
-export const registerHandler = async (
-  request: FastifyRequest<{ Body: RegisterRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const {
-      emailAddress,
-      password,
-      loginType,
-      bio,
-      fullName,
-      photoData,
-      userName,
-      genre,
-    } = request.body;
-
-    const hashed_password = await bcrypt.hash(password, 12);
-
-    if (hashed_password) {
-      const createdUser = await prisma.user.create({
-        data: {
-          emailAdress: emailAddress,
-          hashed_password: hashed_password,
-          loginType: loginType,
-          bio,
-          fullName,
-          photoUrl: photoData,
-          userName,
-          genres: {
-            connect:
-              genre?.map((gen) => ({
-                id: gen,
-              })) || [],
-          },
-        },
-      });
-
-      if (createdUser) {
-        const jwtToken = jwt.sign(
-          {
-            id: createdUser.id,
-            emailAddress: createdUser.emailAdress,
-          },
-          env("SECRET_KEY"),
-        );
-
-        responseSender({
-          reply,
-          code: 201,
-          message: "Registered Successfully",
-          status: true,
-          data: {
-            token: jwtToken,
-          },
-        });
-      } else {
-        responseSender({
-          reply,
-          code: 500,
-          message: "Something went wrong!",
-          status: false,
-        });
-      }
-    } else {
-      responseSender({
-        reply,
-        code: 500,
-        message: "Something went wrong while hashing!",
-        status: false,
-      });
-    }
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      console.log({ err });
-      // The .code property can be accessed in a type-safe manner
-      if (err.code === "P2002") {
-        responseSender({
-          reply,
-          code: 500,
-          message: "Already email is registered!",
-          status: false,
-        });
-      }
-
-      if (err.code === "P2025") {
-        responseSender({
-          reply,
-          code: 500,
-          message: "Genre Id mismatching",
-          status: false,
-        });
-      }
-    }
-
-    responseSender({
-      reply,
-      code: 500,
-      message: "Something went wrong!",
-      status: false,
-      data: err,
-    });
-  }
-};
-
-export const updateUserData = async (
-  request: FastifyRequest<{ Body: updateUserRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { bio, fullName, photoUrl, userName } = request.body;
-
-    const user = request.user.id;
-
-    const updatedUserData = await prisma.user.update({
-      where: {
-        id: user,
-      },
-      data: {
-        bio,
-        fullName,
-        photoUrl,
-        userName,
-      },
-    });
-
-    if (updatedUserData) {
-      responseSender({
-        reply,
-        code: 201,
-        message: "Updated Successfully",
-        status: true,
-      });
-    }
-  } catch (err) {
-    responseSender({
-      reply,
-      code: 500,
-      message: "Something went wrong!",
-      status: false,
-      data: err,
-    });
-  }
-};
-
-export const isEmailAddressValid = async (
-  request: FastifyRequest<{ Body: isEmailAddressValidRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { emailAddress } = request.body;
-    const userData = await prisma.user.findUnique({
-      where: {
-        emailAdress: emailAddress,
-      },
-    });
-
-    if (userData) {
-      responseSender({
-        reply,
-        code: 500,
-        message: "Already EmailId is Registered",
-        status: false,
-      });
-    } else {
-      responseSender({
-        reply,
-        code: 201,
-        status: true,
-      });
-    }
-  } catch (err) {
-    responseSender({
-      reply,
-      code: 500,
-      message: "Something went wrong!",
-      status: false,
-      data: err,
-    });
-  }
-};
-
-export const isUserNameValid = async (
-  request: FastifyRequest<{ Body: isUsernameValidRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { userName } = request.body;
-    const userData = await prisma.user.findUnique({
-      where: {
-        userName,
-      },
-    });
-
-    if (userData) {
-      responseSender({
-        reply,
-        code: 500,
-        message: "Already Username is Used",
-        status: false,
-      });
-    } else {
-      responseSender({
-        reply,
-        code: 201,
-        status: true,
-      });
-    }
-  } catch (err) {
-    responseSender({
-      reply,
-      code: 500,
-      message: "Something went wrong!",
-      status: false,
-      data: err,
-    });
-  }
-};
-
-export const triggerOtp = async (
+export async function checkEmailHandler(
   request: FastifyRequest,
-  reply: FastifyReply,
-) => {
-  try {
-    const { id } = request.user;
-    const generatedOtp = generateOtp(6);
+  reply: FastifyReply
+) {
+  const { email } = request.body as CheckEmailInput;
 
-    await prisma.userOtp.create({
-      data: {
-        userId: id,
-        otp: generatedOtp,
-      },
-    });
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+  });
 
-    responseSender({
-      code: 201,
-      reply,
-      status: true,
-      message: "Otp Sent!",
-    });
-  } catch (err) {
-    console.log({ err });
-    responseSender({
-      reply,
-      code: 500,
-      status: false,
-      message: "Something went wrong!",
+  if (existingUser) {
+    return reply.status(200).send({
+      available: false,
+      message: "Email is already registered.",
     });
   }
-};
 
-export const isEmailVerified = async (
-  request: FastifyRequest<{ Body: verifyEmailAddressRequestSchema }>,
-  reply: FastifyReply,
-) => {
-  try {
-    const { otp } = request.body;
+  return reply.status(200).send({
+    available: true,
+    message: "Email is available for registration.",
+  });
+}
 
-    const { id } = request.user;
-
-    const response = await prisma.userOtp.findUnique({
-      where: {
-        userId: id,
-      },
-    });
-
-    if (response?.otp === otp) {
-      await prisma.user.update({
-        where: {
-          id,
-        },
-        data: {
-          isEmailVerified: true,
-        },
-      });
-      responseSender({
-        code: 201,
-        reply,
-        status: true,
-        message: "Verified Successfully",
-      });
-    } else {
-      responseSender({
-        code: 500,
-        reply,
-        status: false,
-        message: "Otp Mismatch!",
-      });
-    }
-  } catch (err) {
-    console.log({ err: err });
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      if (err.code === "P2025") {
-        responseSender({
-          code: 500,
-          reply,
-          status: false,
-          message: "Provided Email is Not Registered",
-        });
-      }
-      responseSender({
-        code: 500,
-        reply,
-        status: false,
-        message: "Something went wrong!",
-      });
-    }
-    responseSender({
-      code: 500,
-      reply,
-      status: false,
-      message: "Something went wrong!",
-    });
-  }
-};
-
-export const getUserInfo = async (
+export async function registerUserHandler(
   request: FastifyRequest,
-  reply: FastifyReply,
-) => {
-  try {
-    const { id } = request.user;
+  reply: FastifyReply
+) {
+  const { email, name, password, firstName, lastName } = request.body as CreateUserInput;
+  const userDisplayName = (firstName && lastName ? `${firstName} ${lastName}`.trim() : name) || name;
 
-    if (id) {
-      const response = await prisma.user.findUnique({
-        where: {
-          id,
-        },
-        omit: {
-          hashed_password: true,
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (existingUser) {
+    return reply.status(400).send({
+      message: "User with this email already exists.",
+    });
+  }
+
+  // Hash password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  // Generate 6-digit verification code
+  const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationTokenExp = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      name: userDisplayName,
+      password: hashedPassword,
+      verificationToken,
+      verificationTokenExp,
+    },
+  });
+
+  return reply.status(201).send({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    emailVerified: user.emailVerified,
+    verificationToken: user.verificationToken,
+  });
+}
+
+export async function verifyEmailHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { email, token } = request.body as VerifyEmailInput;
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    return reply.status(404).send({ message: "User not found." });
+  }
+
+  if (user.emailVerified) {
+    return reply.status(200).send({
+      message: "Email is already verified.",
+      emailVerified: true,
+    });
+  }
+
+  if (user.verificationToken !== token) {
+    return reply.status(400).send({ message: "Invalid verification code." });
+  }
+
+  if (user.verificationTokenExp && user.verificationTokenExp < new Date()) {
+    return reply.status(400).send({ message: "Verification code has expired." });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      verificationToken: null,
+      verificationTokenExp: null,
+    },
+  });
+
+  return reply.status(200).send({
+    message: "Email verified successfully.",
+    emailVerified: true,
+  });
+}
+
+export async function loginUserHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { email, password } = request.body as LoginInput;
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    return reply.status(400).send({ message: "Email is not registered, do a registration first." });
+  }
+
+  const isPasswordCorrect = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordCorrect) {
+    return reply.status(401).send({ message: "Invalid email or password." });
+  }
+
+  // Check if email is verified
+  if (!user.emailVerified) {
+    // Generate new 6-digit OTP verification code
+    const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationTokenExp = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationToken,
+        verificationTokenExp,
+      },
+    });
+
+    return reply.status(200).send({
+      requiresVerification: true,
+      email: user.email,
+      verificationToken,
+      message: "Email is not verified. A 6-digit verification code has been sent to your email.",
+    });
+  }
+
+  const jwtSecret = process.env.JWT_SECRET || "supersecretkey_change_me_in_production";
+  const accessToken = jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    },
+    jwtSecret,
+    { expiresIn: "7d" }
+  );
+
+  return reply.status(200).send({
+    requiresVerification: false,
+    accessToken,
+  });
+}
+
+export async function getMeHandler(request: FastifyRequest, reply: FastifyReply) {
+  const currentUser = request.user;
+
+  const user = await prisma.user.findUnique({
+    where: { id: currentUser.id },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      emailVerified: true,
+      createdAt: true,
+      stores: {
+        select: {
           id: true,
-          loginType: true,
-        },
-      });
-
-      if (response) {
-        responseSender({
-          code: 201,
-          reply,
+          name: true,
+          slug: true,
+          currency: true,
           status: true,
-          data: response,
-        });
-      } else {
-        responseSender({
-          reply,
-          code: 500,
-          status: false,
-          message: "Authentication Failed!",
-        });
-      }
-    } else {
-      responseSender({
-        reply,
-        code: 500,
-        status: false,
-        message: "Authentication Failed!",
-      });
-    }
-  } catch (err) {
-    responseSender({
-      reply,
-      code: 500,
-      status: false,
-      message: "Something went wrong!",
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    return reply.status(404).send({ message: "User profile not found." });
+  }
+
+  return reply.status(200).send(user);
+}
+
+export async function resendCodeHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const { email } = request.body as ResendCodeInput;
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    return reply.status(404).send({ message: "User account not found." });
+  }
+
+  if (user.emailVerified) {
+    return reply.status(200).send({
+      message: "Email is already verified.",
+      email: user.email,
+      verificationToken: null,
     });
   }
-};
+
+  // Generate new 6-digit OTP verification code
+  const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationTokenExp = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      verificationToken,
+      verificationTokenExp,
+    },
+  });
+
+  return reply.status(200).send({
+    message: "A new verification code has been generated successfully.",
+    email: user.email,
+    verificationToken,
+  });
+}

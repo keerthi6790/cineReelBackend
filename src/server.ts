@@ -1,92 +1,104 @@
-import fastify, { FastifyReply, FastifyRequest } from "fastify";
-import fastifyJwt, { JWT } from "fastify-jwt";
-import userRoutes from "./modules/user/user.route";
-import { UserSchema } from "./modules/user/user.schema";
-import movieRoutes from "./modules/movie/movie.route";
-import { MovieSchema } from "./modules/movie/movie.schema";
-import postRoutes from "./modules/post/post.route";
-import { PostSchema } from "./modules/post/post.schema";
-import { env } from "prisma/config";
-import genreRoutes from "./modules/genre/genre.route";
-import commonRoutes from "./modules/common/common.route";
-import multipart from "@fastify/multipart";
-
-
-
-declare module "fastify" {
-  interface FastifyRequest {
-    jwt: JWT;
-  }
-
-  export interface FastifyInstance {
-    authenticate: any;
-  }
-}
-
-declare module "fastify-jwt" {
-  interface FastifyJWT {
-    user: {
-      id: string;
-      emailAddress: string;
-    };
-  }
-}
+import Fastify, { FastifyReply, FastifyRequest } from "fastify";
+import fjwt from "fastify-jwt";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUi from "@fastify/swagger-ui";
+import { withRefResolver } from "fastify-zod";
+import { userSchemas } from "./modules/user/user.schema";
+import { storeSchemas } from "./modules/store/store.schema";
+import { templateSchemas } from "./modules/template/template.schema";
+import { categorySchemas } from "./modules/category/category.schema";
+import { pageSchemas } from "./modules/page/page.schema";
+import { menuSchemas } from "./modules/menu/menu.schema";
+import { userRoutes } from "./modules/user/user.route";
+import { storeRoutes } from "./modules/store/store.route";
+import { templateRoutes } from "./modules/template/template.route";
+import { categoryRoutes } from "./modules/category/category.route";
+import { pageRoutes } from "./modules/page/page.route";
+import { menuRoutes } from "./modules/menu/menu.route";
 
 function buildServer() {
-  const server = fastify();
+  const server = Fastify({
+    logger: true,
+  });
 
-  server.setErrorHandler((err: any, req, reply) => {
-    if (err.validation) {
-      return reply.status(400).send({
-        message: "Validation failed",
-        errors: err.validation.map((e: any) => ({
-          field: e.instancePath,
-          message: e.message,
-        })),
-      });
+  // CORS hook for cross-origin requests from frontend
+  server.addHook("onRequest", async (request, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (request.method === "OPTIONS") {
+      return reply.status(200).send();
     }
-
-    reply.send(err);
   });
 
-  server.get("/health-check", (request: FastifyRequest, reply: FastifyReply) =>
-    reply.code(201).send("Running"),
-  );
-
-  server.register(fastifyJwt, {
-    secret: env("SECRET_KEY"),
+  // Register JWT plugin
+  server.register(fjwt, {
+    secret: process.env.JWT_SECRET || "supersecretkey_change_me_in_production",
   });
 
-  server.register(multipart);
-
+  // Add authentication decorator
   server.decorate(
     "authenticate",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         await request.jwtVerify();
-      } catch (e: any) {
-        reply.code(500).send(e);
+      } catch (err) {
+        return reply.status(401).send({ message: "Unauthorized. Valid token required." });
       }
-    },
+    }
   );
 
-  server.addHook(
-    "preHandler",
-    (request: FastifyRequest, reply: FastifyReply, next) => {
-      request.jwt = server.jwt;
-      return next();
-    },
-  );
-
-  for (const schema of [...UserSchema, ...MovieSchema, ...PostSchema]) {
+  // Register Zod schemas
+  for (const schema of [...userSchemas, ...storeSchemas, ...templateSchemas, ...categorySchemas, ...pageSchemas, ...menuSchemas]) {
     server.addSchema(schema);
   }
 
-  server.register(userRoutes, { prefix: "/api/user" });
-  server.register(genreRoutes, { prefix: "/api/genre" });
-  server.register(commonRoutes, { prefix: "/api/common" });
-  server.register(movieRoutes, { prefix: "/api/movie" });
-  server.register(postRoutes, { prefix: "/api/post" });
+  // Register Swagger Documentation plugin
+  server.register(
+    fastifySwagger,
+    withRefResolver({
+      openapi: {
+        info: {
+          title: "Shopify Alternative Platform API",
+          description: "Interactive API Documentation for User Auth, Email Validation, and Multi-Tenant Store Management.",
+          version: "1.0.0",
+        },
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: "http",
+              scheme: "bearer",
+              bearerFormat: "JWT",
+              description: "Enter your Bearer JWT token in format: Bearer <token>",
+            },
+          },
+        },
+      },
+    })
+  );
+
+  // Register Swagger UI at /docs
+  server.register(fastifySwaggerUi, {
+    routePrefix: "/docs",
+    uiConfig: {
+      docExpansion: "list",
+      deepLinking: false,
+    },
+    staticCSP: true,
+  });
+
+  // Healthcheck route
+  server.get("/healthcheck", async () => {
+    return { status: "OK", timestamp: new Date().toISOString() };
+  });
+
+  // Register Module Routes
+  server.register(userRoutes, { prefix: "api/users" });
+  server.register(storeRoutes, { prefix: "api/stores" });
+  server.register(templateRoutes, { prefix: "api/templates" });
+  server.register(categoryRoutes, { prefix: "api/categories" });
+  server.register(pageRoutes, { prefix: "api/pages" });
+  server.register(menuRoutes, { prefix: "api/menus" });
 
   return server;
 }
